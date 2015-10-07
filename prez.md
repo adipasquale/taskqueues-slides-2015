@@ -38,7 +38,7 @@ class: middle
 
 ## My taskqueue is better than yours
 
-- Celery / Sidekiq / Resque / Beanstalkd ...
+- Celery / Sidekiq / Resque / MRQ / RQ / (Beanstalkd) ...
 
 
 - Efficiency 
@@ -94,29 +94,61 @@ class: middle, center
 
 ## Thread-safe jobs
 
-class methods / variables
-ruby
+class methods / variables (e.g. Resque Job)
+
 ```rb
-def perform(leak_name)
-  Klass.leak_name = leak_name
-  Klass.do_leak
+class SomeJob
+  def self.perform(some_param)
+    SomeClass.some_var = some_par
+    SomeClass.do_something
+  end
 end
 ```
 
+- when ran in parralel, `some_var` will be the same process-wise
 
-mutable instance variables
-python
-```py
-class SimpleJob(Job):
-  mutable_will_leak = []
-  def run(self, params):
-    self.mutable_will_leak.push(“indeed”)
+- better :
+
+```rb
+class SomeJob
+  def self.perform(some_param)
+    some_class = SomeClass.new(leak_name)
+    some_class.do_something
+  end
+end
 ```
 
 ???
 
-1. If 2 of these jobs run concurrently, the `leak_name` var will leak.
-2. idem, the mutable_will_leak .
+*diagram of parallel run ?*
+
+---
+
+## Thread-safe jobs
+
+mutable instance variables (e.g. MRQ Job)
+
+```py
+class SomeJob(Job):
+  some_mutable = []
+  def run(self, params):
+    some_mutable.push(params["some_param"])
+```
+
+- when ran in parallel, `some_mutable` will be the same process-wise
+
+- better :
+
+```py
+class SomeJob(Job):
+  def run(self, params):
+    some_mutable = []
+    some_mutable.push(params["some_param"])
+```
+
+???
+
+*diagram of parallel run ?*
 
 ---
 class: center, middle
