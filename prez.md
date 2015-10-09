@@ -1,15 +1,13 @@
 class: center, middle
 
 # Taskqueues go wild
-
-![](http://www.davisbase.com/wp-content/uploads/2014/04/developer-crazy-shutterstock_10777099-300x200.jpg)
-
-### (in web applications context)
+### (web apps context)
+![](images/wild.jpg)
 
 12/10/2015 - Adrien Di Pasquale
 
 .logo[
-  ![](https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Drivy_logo.png/320px-Drivy_logo.png)
+  ![](images/drivy.png)
 ]
 
 
@@ -22,7 +20,7 @@ class: center, middle
 class: middle
 
 .full[
-  ![](https://drive.google.com/uc?id=0B0Rb_B4jRdUZRnd2Mzc5WHRWZjg)]
+  ![](images/taskqueues.svg)]
 
 ???
 
@@ -38,13 +36,12 @@ class: middle
 
 ## My taskqueue is better than yours
 
-- Celery / Sidekiq / Resque / MRQ / RQ / (Beanstalkd) ...
+Celery, Sidekiq, Resque, MRQ, RQ ...
 
+--
 
 - Efficiency 
-
 - Reliability
-
 - Visibility
 
 ???
@@ -58,9 +55,7 @@ class: middle
 ## Why so many problems ?
 
 - single-threaded languages
-
-- jobs concurrency
-
+- concurrency
 - third party dependencies
 
 ???
@@ -71,9 +66,14 @@ class: middle
 ---
 class: middle, center
 
+# PITFALLS
+
+---
+class: middle, center
+
 # Check your code 
 
-![](https://drive.google.com/uc?id=0B0Rb_B4jRdUZUWdnZWJUc29SakE)
+![](images/code.svg)
 
 ---
 
@@ -81,81 +81,109 @@ class: middle, center
 
 - idempotent
 - (re-entrant)
-- "stateless"
-- least args possible
 
 ???
 
 - idempotent = can be safely run several times : *add example*
 - re-entrant = can stop in the middle and be ran again in another process : *add example*
+
+--
+- "stateless"
+
+???
+
 - stateless = you cannot expect your models to be in the same state as they were when you enqueued. you should check for it or pass the state in the args.
+--
+- least args possible
+
 
 ---
 
 ## Thread-safe jobs
 
-class methods / variables (e.g. Resque Job)
+--
+
+### Class level calls
 
 ```rb
-class SomeJob
-  def self.perform(some_param)
-    SomeClass.some_var = some_par
-    SomeClass.do_something
-  end
-end
-```
-
-- when ran in parralel, `some_var` will be the same process-wise
-
-- better :
-
-```rb
-class SomeJob
-  def self.perform(some_param)
-    some_class = SomeClass.new(leak_name)
-    some_class.do_something
+class SomeJob < ResqueJob
+  def self.perform(value)
+    Util.some_opt = value
+    Util.do_something
   end
 end
 ```
 
 ???
 
-*diagram of parallel run ?*
+- Classes are instanciated state-wise in Ruby
+- when ran in parralel, `Util.some_opt` will be the same process-wise
+- *diagram of parallel run ?*
+
+--
+
+=> BAD
 
 ---
 
 ## Thread-safe jobs
+### Class level calls
 
-mutable instance variables (e.g. MRQ Job)
-
-```py
-class SomeJob(Job):
-  some_mutable = []
-  def run(self, params):
-    some_mutable.push(params["some_param"])
+```rb
+class SomeJob < ResqueJob
+  def self.perform(value)
+    util = Util.new(value)
+    util.do_something
+  end
+end
 ```
 
-- when ran in parallel, `some_mutable` will be the same process-wise
+=> GOOD
 
-- better :
+---
+
+## Thread-safe jobs
+### Mutable instance variables
 
 ```py
-class SomeJob(Job):
+class SomeJob(MRQJob):
+  some_list = []
   def run(self, params):
-    some_mutable = []
-    some_mutable.push(params["some_param"])
+    some_list.push(params["value"])
 ```
 
 ???
 
-*diagram of parallel run ?*
+- joke clear superiority of python (2 lines less)
+- when ran in parallel, `some_list` will be the same process-wise
+- *diagram of parallel run ?*
+
+--
+
+=> BAD
+
+---
+
+## Thread-safe jobs
+### Mutable instance variables
+
+```py
+class SomeJob(MRQJob):
+  def run(self, params):
+    some_list = []
+    some_list.push(params["value"])
+```
+
+=> GOOD
+
+???
 
 ---
 class: center, middle
 
 # My broker is a liar
 
-![](https://drive.google.com/uc?id=0B0Rb_B4jRdUZSGI0SVJqS0l3SjQ)
+![](images/broker.svg)
 
 ---
 
@@ -173,9 +201,11 @@ class: center, middle
 
 ## Jobs loss
 
-- RAM-based broker process crashed
+- All jobs lost on broker crash
 
-=> set up periodic logging to disk
+--
+
+=> periodic logging to disk
 
 ???
 
@@ -187,33 +217,39 @@ class: center, middle
 
 ## Jobs discarding
 
-- no more storage space
-
-  - tracebacks pollution
-
-  - too many arguments
-
-
+- broker storage exceeded
 - connection problems
 
-=> monitor your broker machine / set up alerts on your SAAS provider 
+--
+
+=> monitor your broker
 
 ???
 
+- storage :
+  - tracebacks pollution
+  - too many arguments
+- if dedicated machine, proper monitoring
+- else SAAS : set up alerts on your SAAS provider
 - there are good SAAS redis providers out there.
 
 ---
 class: center, middle
 
 # Runtime Problems
-*it works on my machine*
+
+--
+
+*"it works on my machine"*
 
 ---
 
 ## Queue like a boss
 
+--
+
 .full[
-  ![workers different configs](https://drive.google.com/uc?id=0B0Rb_B4jRdUZX2tCYkd5NFlDWEE)
+  ![workers different configs](images/workers.svg)
 ]
 
 ???
@@ -227,7 +263,7 @@ class: center, middle
 ## Queue like a boss
 
 .full[
-  ![workers + queues](https://drive.google.com/uc?id=0B0Rb_B4jRdUZSVd6MHZ1YXA5aFk)
+  ![workers + queues](images/workers_and_queues.svg)
 ]
 
 ???
@@ -243,51 +279,84 @@ class: center, middle
 
 ## <strike>Avoid</strike> Anticipate congestions
 
-Bad day scenario :
-- Job A becomes 10x slower than before 
-- Job B keeps failing and delay retries in cascade
-- Worker can't handle everything anymore
+- Job A becomes 10x slower
+- Job B keeps failing
 
+???
+  Bad day scenario
+  A resource (DB, 3rd party) may be slow / unavailable. or a code update side effect.
 
-- Jobs slowdowns will happen. Be prepared
-- monitor
-
+--
+- Worker can't dequeue it all
 
 ???
 
-  A resource (DB, 3rd party) may be slow / unavailable. or a code update side effect.
-  You need to be able to scale lots of worker quickly. and know your limits so you don't overload a resource / consume all the network. 
-  monitor so you notice it before the broker implodes / the end users get angry.
+  => Jobs slowdowns will happen.
+
+--
+
+=> Be ready. monitor.
+
+
+???
+  => monitor so you notice it before the broker implodes / the end users get angry.
+  => You need to be able to scale lots of worker quickly. and know your limits so you don't overload a resource / consume all the network.
+  => auto-scaling is not going to be your solution (for the first few years at least)
+
+  ==> rate of
+
 
 ---
 
-## Workers crash
+## Workers will crash
 
-- Memory exceeded
+- <s>Exceptions</s>
 
-  - (Heroku R14s are NOT monitored by error trackers)
-
-
-- auto restart is crucial
+--
+- System reboots
+- Memory leaks
+- Hardware crashes
 
 ???
+
+- your system reboots very often, if it's poorly coded it's no different than a crash.
+- heroku reboots everyday
+
+--
+
+=> Tooling + Auto-restart + Soft kill
+
+???
+
+
+- debugging memory leaks is hard. it's even harder in taskqueue systems. know your tools. roll up your sleeves.
+- Heroku R14s are NOT monitored by error trackers
+- handle signals, requeue jobs if you can't finish them in time.
 
   
 
 ---
 
-## Clock (CRON) crash
+## CRON will crash
 
 - Undetected syntax errors
-
-- Runtime error
-
-=> monitor it’s status (ping it) and effect (heartbeat)
+- Runtime errors
 
 ???
 
-  Syntax errors can go undetected : clock is rarely ran in development and even less covered by tests.
-  Runtime error can easily go undetected as we often run the clock as a background process of a proper worker.
+- Syntax errors can go undetected : clock is rarely ran in development and even less covered by tests.
+- Runtime error e.g. : argument computed on the fly fails
+- can easily go undetected as we often run the clock as a background process of a proper worker.
+--
+
+=> monitor status and effect
+
+???
+
+- keep it as simple as possible. queue tasks with args
+- if classical worker : all the above reasons
+- status : (ping it)
+- effect : heartbeat queue
 
 ---
 
@@ -295,44 +364,67 @@ Bad day scenario :
 
 - Jobs **will** fail
 
-- => Retry strategy
-- => Track exceptions with external service. 
+???
+can't / shouldn't cover all cases. User input, unexpected context, different environments ...
+exceptions will be raised.
+
+--
+
+=> Tracking + Retry strategy
 
 ???
 
-  Different jobs may have different retry strategies. 
-  All I/O calls (especially HTTP) should be expected to fail as a regular behaviour. 
-  You should retry these jobs several times before considering them as properly failed. 
-  You can implement increasing retries delays to handle temporarily unavailabale resources
+- Tracking : bugsnag. middleware that logs all Exceptions to a dedicated SAAS service that will alert you. you can then depile and create issues for each depending on their priority / urgency.
+- *screenshot from MRQ ?*
+- Different jobs may have different retry strategies.
+- All I/O calls (especially HTTP) should be expected to fail as a regular behaviour.
+- You should retry these jobs several times before considering them as properly failed.
+- You can implement increasing retries delays to handle temporarily unavailabale resources
 
-  external service not very clear
 
 ---
 
 ## Connections problems
 
-![]()
-
 - DB overload
-- DB max connection outreached
-  - (provider limit || low ulimit)
+- connections limit outreached
+
+???
+- A worker typically hits the DB way harder than a regular web process. Try and estimate how hard before scaling your workers.
+- limits : provider limit || low ulimit
+
+--
 - slave dbs
 
-- => Use connection pools 
-- => Know your limits
+???
+Sidekiq OOTB doesn't have proper pooling for slaves :o
+
+--
+
+=> connection pools + know your limits
 
 ???
 
-  A worker typically hits the DB way harder than a regular web process. Try and estimate how hard before scaling your workers.
-  Make sure your workers use connection pools, and are 'good citizens', releasing the unused ones, reconnecting on deconnections ... Dimension your pools according to your DB limits. 
+- Make sure your workers use connection pools, and are 'good citizens', releasing the unused ones, reconnecting on deconnections ...
+- Dimension your pools according to your DB limits.
 
 ---
 
 # Conclusion
 
-Sorry for using the word "monitor" <s>534</s> 535 times. 
+???
 
-Workers are cheap, don't over optimize unless you need to.
+- emerging field
+- can't overstate how much monitoring is important
+
+--
+
+Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor ! Monitor !
+
+---
+# Conclusion
+
+Workers are cheap.
 
 ---
 
