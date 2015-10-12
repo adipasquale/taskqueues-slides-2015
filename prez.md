@@ -17,7 +17,7 @@ class: center, middle
 # Intro
 
 ---
-class: middle
+class: middle, no-padding, white
 
 .full[
   ![](images/taskqueues.svg)]
@@ -36,32 +36,50 @@ class: middle
 
 ## My taskqueue is better than yours
 
+--
+
 Celery, Sidekiq, Resque, MRQ, RQ ...
 
 --
-
+.margin-top[
 - Efficiency 
 - Reliability
 - Visibility
+]
 
 ???
 
-- efficiency = Fast with cheap workers
-- reliability = no jobs lost / retries / auto-reboots ...
+- efficiency = Fast and cheap
+- reliability = All jobs get executed at some point
 - visibility = live monitoring / debug tools / (tracebacks)
 
 ---
 
 ## Why so many problems ?
 
+???
+
+- same code in very different context web != workers
+
+--
+
 - single-threaded languages
+
+--
+
 - concurrency
+
+???
+
+- locks on resources ...
+
+--
+
 - third party dependencies
 
 ???
 
-- same code in very different context web != workers
-- concurrency is much higher that regular web dynos
+- mails, apis  ...
 
 ---
 class: middle, center
@@ -73,14 +91,11 @@ class: middle, center
 
 # Check your code 
 
-![](images/code.svg)
-
 ---
 
-## Good Job :thumbsup:
+## Good Job !
 
-- idempotent
-- (re-entrant)
+- idempotent (*and re-entrant*)
 
 ???
 
@@ -88,7 +103,7 @@ class: middle, center
 - re-entrant = can stop in the middle and be ran again in another process : *add example*
 
 --
-- "stateless"
+- stateless
 
 ???
 
@@ -101,7 +116,12 @@ class: middle, center
 
 ## Thread-safe jobs
 
+???
+
+libraries ..
+
 --
+name: thread-ruby-bad
 
 ### Class level calls
 
@@ -116,11 +136,20 @@ end
 
 ???
 
-- Classes are instanciated state-wise in Ruby
+- Classes are instanciated process-wise
 - when ran in parralel, `Util.some_opt` will be the same process-wise
-- *diagram of parallel run ?*
 
 --
+=> BAD
+
+---
+class: middle, white, no-padding
+
+.full[
+  ![](images/jobs_threads.svg)]
+
+---
+template: thread-ruby-bad
 
 => BAD
 
@@ -155,8 +184,8 @@ class SomeJob(MRQJob):
 ???
 
 - joke clear superiority of python (2 lines less)
+- same problem
 - when ran in parallel, `some_list` will be the same process-wise
-- *diagram of parallel run ?*
 
 --
 
@@ -183,42 +212,52 @@ class: center, middle
 
 # My broker is a liar
 
-![](images/broker.svg)
-
 ---
 
 ## Contract breaches
 
-- single job dequeued by 2 workers `BLPOP`
-- ...
+- Atomicity
 
 ???
 
 - read your broker specs / issues. or use redis.
 - don't go too exoctic wild there are LOADS of very good messaging brokers out there. 
 
----
-
-## Jobs loss
-
-- All jobs lost on broker crash
-
 --
 
-=> periodic logging to disk
+- All jobs lost on broker crash
 
 ???
 
 - RAM-based dbs (redis) mean you have to backup regularly if you don’t want to loose jobs.
 - do not use RAM-based broker if you can't accept losing a few jobs once in a while
 
----
+--
 
+=> Read specs + Periodic backups
+
+---
 
 ## Jobs discarding
 
+???
+
+jobs not taken into account anymore, left out
+
+--
+
 - broker storage exceeded
+
+???
+
+- metadata pollution : tracebacks, args
+
+--
 - connection problems
+
+???
+
+- latency, DNS ..
 
 --
 
@@ -226,17 +265,18 @@ class: center, middle
 
 ???
 
-- storage :
-  - tracebacks pollution
-  - too many arguments
-- if dedicated machine, proper monitoring
-- else SAAS : set up alerts on your SAAS provider
+
+- HW monitoring, or alerts on your SAAS provider
 - there are good SAAS redis providers out there.
 
 ---
 class: center, middle
 
 # Runtime Problems
+
+???
+
+things you can't detect before you run and volumes grow
 
 --
 
@@ -246,7 +286,12 @@ class: center, middle
 
 ## Queue like a boss
 
---
+???
+
+strategies
+
+---
+class: middle, white, no-padding
 
 .full[
   ![workers different configs](images/workers.svg)
@@ -259,8 +304,7 @@ class: center, middle
   - 256mb ram + 100 threads
 
 ---
-
-## Queue like a boss
+class: middle, white, no-padding
 
 .full[
   ![workers + queues](images/workers_and_queues.svg)
@@ -278,6 +322,8 @@ class: center, middle
 ---
 
 ## <strike>Avoid</strike> Anticipate congestions
+
+--
 
 - Job A becomes 10x slower
 - Job B keeps failing
@@ -300,7 +346,9 @@ class: center, middle
 
 ???
   => monitor so you notice it before the broker implodes / the end users get angry.
+
   => You need to be able to scale lots of worker quickly. and know your limits so you don't overload a resource / consume all the network.
+
   => auto-scaling is not going to be your solution (for the first few years at least)
 
   ==> rate of
@@ -313,9 +361,10 @@ class: center, middle
 - <s>Exceptions</s>
 
 --
-- System reboots
-- Memory leaks
 - Hardware crashes
+
+--
+- System reboots
 
 ???
 
@@ -323,15 +372,22 @@ class: center, middle
 - heroku reboots everyday
 
 --
+- Memory leaks
 
-=> Tooling + Auto-restart + Soft kill
+???
+
+- memory leak will grow quickly and worker will implode
+- Heroku R14s are NOT monitored by error trackers
+
+--
+
+=> Soft shutdown + Tooling + Auto-restart
 
 ???
 
 
-- debugging memory leaks is hard. it's even harder in taskqueue systems. know your tools. roll up your sleeves.
-- Heroku R14s are NOT monitored by error trackers
 - handle signals, requeue jobs if you can't finish them in time.
+- debugging memory leaks is hard. it's even harder in taskqueue systems. know your tools. roll up your sleeves.
 
   
 
@@ -339,17 +395,24 @@ class: center, middle
 
 ## CRON will crash
 
-- Undetected syntax errors
-- Runtime errors
+--
+
+- Syntax errors
 
 ???
 
 - Syntax errors can go undetected : clock is rarely ran in development and even less covered by tests.
+
+--
+- Runtime errors
+
+???
+
 - Runtime error e.g. : argument computed on the fly fails
 - can easily go undetected as we often run the clock as a background process of a proper worker.
 --
 
-=> monitor status and effect
+=> KISS + monitor status and effect
 
 ???
 
@@ -362,35 +425,60 @@ class: center, middle
 
 ## Exceptions & retries
 
-- Jobs **will** fail
+--
+
+- Jobs **will** raise exceptions
 
 ???
 can't / shouldn't cover all cases. User input, unexpected context, different environments ...
 exceptions will be raised.
 
 --
+name: exceptions
 
-=> Tracking + Retry strategy
+=> Tracking
 
 ???
 
 - Tracking : bugsnag. middleware that logs all Exceptions to a dedicated SAAS service that will alert you. you can then depile and create issues for each depending on their priority / urgency.
 - *screenshot from MRQ ?*
+
+---
+
+class: white, no-padding, middle
+
+.full[
+  ![](images/bugsnag.png)]
+
+---
+template: exceptions
+
+=> Retry strategy
+
+???
+
 - Different jobs may have different retry strategies.
 - All I/O calls (especially HTTP) should be expected to fail as a regular behaviour.
 - You should retry these jobs several times before considering them as properly failed.
 - You can implement increasing retries delays to handle temporarily unavailabale resources
 
-
 ---
 
 ## Connections problems
 
+--
+
 - DB overload
-- connections limit outreached
 
 ???
 - A worker typically hits the DB way harder than a regular web process. Try and estimate how hard before scaling your workers.
+
+--
+
+- connections limit outreached
+
+???
+
 - limits : provider limit || low ulimit
 
 --
@@ -428,8 +516,7 @@ Workers are cheap.
 
 ---
 
-# resources
+Online version :
+[http://adipasquale.github.io/taskqueues-slides-2015](http://adipasquale.github.io/taskqueues-slides-2015)
 
-http://www.slideshare.net/bryanhelmig/task-queues-comorichweb-12962619
-
-http://www.rockstarprogrammer.org/post/2008/oct/04/what-matters-asynchronous-job-queue/
+[adipasquale on github](http://github.com/adipasquale)
